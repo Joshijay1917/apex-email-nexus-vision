@@ -5,17 +5,16 @@ import * as WebBrowser from "expo-web-browser";
 // On localhost, 10.0.2.2 is used for Android Emulators, and localhost for iOS.
 // Better yet, dynamically grabbing it from expo constants handles physical device debugging too.
 const getBaseUrl = () => {
+    const url = process.env.BACKEND_URI;
+    if (url) {
+        return url;
+    }
     if (__DEV__) {
         const debuggerHost = Constants.expoConfig?.hostUri;
         const localhost = debuggerHost ? debuggerHost.split(':')[0] : 'localhost';
         // Use your backend port here
         return `http://${localhost}:3000`;
     }
-    const url = process.env.BACKEND_URI;
-    if (!url) {
-        throw new Error("BACKEND_URI is not defined");
-    }
-    return url;
 };
 
 let authToken: string | null = null;
