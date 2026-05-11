@@ -1,50 +1,50 @@
-# Welcome to your Expo app 👋
+# Apex Email Nexus Vision
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+This is the **React Native (Expo)** client application for Email Nexus—a next-generation AI inbox management assistant. It integrates real-time Gmail synchronization previews and pairs with your personal WhatsApp account to provide conversational summaries and urgent email alerts.
 
-## Get started
+## 🚀 User Onboarding Flow
 
-1. Install dependencies
+The user onboarding experience is broken down into a sequential step-by-step flow designed for high security and clean UX:
 
-   ```bash
-   npm install
-   ```
+### 1. Google Authentication
+- The application opens a Secure Web Browser session hitting the backend's `GET /auth/google/login`.
+- Upon successful Gmail verification, the backend deeply redirects the device back into the application at `/onboarding-success?token=<JWT>`.
 
-2. Start the app
+### 2. Secure Token Handlers & Hydration
+To ensure future RESTful requests persist identity safely:
+- **Auto-Extraction**: Expo Router captures incoming parameters from the URL.
+- **Global Client Inoculation**: The token is automatically passed into the application's core network utility (`apiClient.ts`).
+- **Implicit Authorization**: The specialized singleton interceptor caches the token and injects `Authorization: Bearer <token>` into the HTTP headers of all sequential API hits automatically.
 
-   ```bash
-   npx expo start
-   ```
+### 3. WhatsApp Identity Bridge (OTP verification)
+To bridge notifications over to WhatsApp, the system initiates a secure verification handshake:
+1. **Validation**: The user inputs their region-specific phone number. The app validates format strictly via `libphonenumber-js`.
+2. **Dispatch**: User calls `updatePhone`. Backend generates an ephemeral cryptographic OTP payload and broadcasts it to the User's actual WhatsApp chat via the WAHA Bridge.
+3. **Verification**: The client enters the received 6-digit sequence into an interactive masked input form. 
+4. **Activation**: Upon successful matching, the ephemeral cache flushes, and the Nexus Agent broadcasts the official "Welcome" chat message to start active bridge operation.
 
-In the output, you'll find options to open the app in a
+---
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 🛠 Installation & Getting Started
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
+### 1. Install dependencies
 ```bash
-npm run reset-project
+npm install
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Environment Variables
+Ensure you specify your dedicated target backend location within your root `.env`:
+```env
+EXPO_PUBLIC_BACKEND_URI=http://your-host-ip:3000
+```
 
-## Learn more
+### 3. Launch the application
+```bash
+npx expo start
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+## 📚 Architecture Summary
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- **`/api`**: Houses strongly-typed, reusable functional connectors like `apiClient.ts`, `userApi.ts`, and `gmailApi.ts`.
+- **`/app`**: Expo Router file-system routes defining specific screen hierarchies.
+- **`react-native-otp-entry`**: Highly performant customized user input fields for rapid-fire OTP submission.
