@@ -1,8 +1,13 @@
 import React, { useEffect } from "react";
 import { Text, View, TouchableOpacity, StyleSheet, Alert } from "react-native";
-import * as WebBrowser from "expo-web-browser";
 import * as Linking from "expo-linking";
 import userApi from "@/api/userApi";
+import { initExecutorch } from 'react-native-executorch';
+import { ExpoResourceFetcher } from 'react-native-executorch-expo-resource-fetcher';
+
+initExecutorch({
+  resourceFetcher: ExpoResourceFetcher,
+});
 
 export default function Index() {
   // Use Expo's hook to listen for the deep link return
@@ -37,6 +42,7 @@ export default function Index() {
 
         <TouchableOpacity
           onPress={handleLogin}
+          // onPress={() => router.push('/(tabs)/home')}
           style={styles.button}
         >
           <Text style={styles.buttonText}>Connect Gmail Account</Text>

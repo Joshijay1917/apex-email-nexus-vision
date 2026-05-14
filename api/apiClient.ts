@@ -5,7 +5,8 @@ import * as WebBrowser from "expo-web-browser";
 // On localhost, 10.0.2.2 is used for Android Emulators, and localhost for iOS.
 // Better yet, dynamically grabbing it from expo constants handles physical device debugging too.
 const getBaseUrl = () => {
-    const url = process.env.BACKEND_URI;
+    const url = process.env.EXPO_PUBLIC_BACKEND_URI;
+    console.log("Backend url from env:", url)
     if (url) {
         return url;
     }

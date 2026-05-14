@@ -100,7 +100,7 @@ export default function VerifyOtp() {
                 )}
 
                 <View style={styles.footer}>
-                    <Text style={styles.resendText}>Didn't receive the code?</Text>
+                    <Text style={styles.resendText}>Didn&apos;t receive the code?</Text>
                     <TouchableOpacity onPress={handleResend} disabled={timer > 0}>
                         <Text style={[styles.resendButton, timer > 0 && styles.disabledText]}>
                             {timer > 0 ? `Resend in ${timer}s` : "Resend Code"}

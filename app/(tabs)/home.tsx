@@ -1,11 +1,77 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient'; // Ensure expo-linear-gradient is installed
+import { LinearGradient } from 'expo-linear-gradient';
+import LLMModal from '@/components/home/model-loading-modal';
+import gmailApi, { EmailItem } from '@/api/gmailApi';
+import { QWEN2_5_0_5B_QUANTIZED, useLLM } from 'react-native-executorch';
+
+interface item extends EmailItem { }
 
 export default function Home() {
-    return (
-        <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    const { isReady, downloadProgress, sendMessage, error } = useLLM({ model: QWEN2_5_0_5B_QUANTIZED });
+    const [emails, setEmails] = useState<item[]>([]);
+    const [isModalAvailable, setIsModalAvailable] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [aiResponses, setAiResponses] = useState<Record<string, string>>({});
+
+    const fetchPreview = async () => {
+        // 1. Ensure model is ready for secure background execution
+        if (!isReady) return;
+
+        setLoading(true);
+
+        try {
+            const result = await gmailApi.syncEmails();
+
+            if (result.status === 'success') {
+                const fetchedEmails = result.data;
+
+                // 2. Immediately render emails to the UI for optimal UX
+                setEmails(fetchedEmails);
+                setLoading(false);
+
+                // 3. Generate AI summaries sequentially in background to prevent OOM & UI lockup
+                const responses: Record<string, string> = {};
+
+                for (const email of fetchedEmails) {
+                    try {
+                        const prompt = `
+Summarize this email in 1 short sentence.
+
+Email:
+${email.snippet?.slice(0, 500)}
+                        `;
+
+                        const ai = await sendMessage(prompt);
+                        responses[email.id] = ai || "No AI summary available";
+                    } catch (err) {
+                        responses[email.id] = "AI generation failed";
+                    }
+
+                    // Update state after each generation to "pop-in" summaries incrementally
+                    setAiResponses({ ...responses });
+                }
+            }
+        } catch (error) {
+            console.error('Failed to sync:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (isReady) {
+            fetchPreview();
+        }
+    }, [isReady]);
+
+    useEffect(() => {
+        setIsModalAvailable(!isReady);
+    }, [isReady]);
+
+    const renderHeader = () => (
+        <>
             {/* Header */}
             <View style={styles.header}>
                 <View>
@@ -39,44 +105,67 @@ export default function Home() {
                 </Text>
             </LinearGradient>
 
-            {/* Quick Stats */}
-            <View style={styles.statsRow}>
-                <View style={styles.statBox}>
-                    <Text style={styles.statVal}>12</Text>
-                    <Text style={styles.statLabel}>Syncs Today</Text>
-                </View>
-                <View style={styles.statBox}>
-                    <Text style={styles.statVal}>2</Text>
-                    <Text style={styles.statLabel}>WhatsApp Alerts</Text>
+            <Text style={styles.previewTitle}>LATEST SYNC PREVIEW</Text>
+        </>
+    );
+
+    const renderEmailItem = ({ item }: { item: item }) => (
+        <View style={styles.emailCard}>
+            <View style={styles.iconCircle}>
+                <Ionicons name="mail-unread-outline" size={20} color="#10b981" />
+            </View>
+            <View style={styles.emailContent}>
+                <Text style={styles.emailSnippet} numberOfLines={2}>
+                    {item.snippet || "No preview available"}
+                </Text>
+                <View style={styles.aiResponseContainer}>
+                    <Text style={styles.aiResponseTitle}>AI Insight</Text>
+                    <Text style={styles.aiResponse}>
+                        {aiResponses[item.id] || (isReady ? "Generating AI response..." : "Waiting for model...")}
+                    </Text>
                 </View>
             </View>
+        </View>
+    );
 
-            {/* Recent Activity Label */}
-            <Text style={styles.sectionTitle}>Recent Insights</Text>
+    const renderEmptyComponent = () => {
+        if (loading) {
+            return (
+                <View style={styles.loaderContainer}>
+                    <ActivityIndicator size="large" color="#10b981" />
+                    <Text style={styles.loaderText}>Syncing securely...</Text>
+                </View>
+            );
+        }
+        return <Text style={styles.emptyText}>No recent emails found.</Text>;
+    };
 
-            {/* Example Activity Item */}
-            <View style={styles.activityItem}>
-                <View style={styles.activityIcon}>
-                    <Ionicons name="mail" size={20} color="#9ca3af" />
-                </View>
-                <View style={styles.activityText}>
-                    <Text style={styles.activityTitle}>Invoice Detected</Text>
-                    <Text style={styles.activitySub}>Amazon.in - ₹1,299</Text>
-                </View>
-                <Text style={styles.activityTime}>2m ago</Text>
-            </View>
+    return (
+        <View style={styles.container}>
+            {/* Lifted prop state provides singleton loading visualizer */}
+            <LLMModal
+                isVisible={isModalAvailable}
+                onClose={() => setIsModalAvailable(false)}
+                isReady={isReady}
+                downloadProgress={downloadProgress}
+                error={error}
+            />
 
-            <View style={styles.activityItem}>
-                <View style={styles.activityIcon}>
-                    <Ionicons name="logo-whatsapp" size={20} color="#10b981" />
-                </View>
-                <View style={styles.activityText}>
-                    <Text style={styles.activityTitle}>WhatsApp Summary Sent</Text>
-                    <Text style={styles.activitySub}>Daily digest forwarded to you.</Text>
-                </View>
-                <Text style={styles.activityTime}>1h ago</Text>
-            </View>
-        </ScrollView>
+            <FlatList
+                data={emails}
+                renderItem={renderEmailItem}
+                keyExtractor={(item) => item.id}
+                ListHeaderComponent={renderHeader}
+                ListEmptyComponent={renderEmptyComponent}
+                contentContainerStyle={styles.content}
+
+                // Production-grade performance settings
+                removeClippedSubviews={true}
+                initialNumToRender={5}
+                maxToRenderPerBatch={5}
+                windowSize={5}
+            />
+        </View>
     );
 }
 
@@ -88,6 +177,7 @@ const styles = StyleSheet.create({
     content: {
         padding: 24,
         paddingTop: 60,
+        paddingBottom: 40,
     },
     header: {
         flexDirection: 'row',
@@ -112,7 +202,7 @@ const styles = StyleSheet.create({
         padding: 24,
         borderWidth: 1,
         borderColor: '#064e3b',
-        marginBottom: 24,
+        marginBottom: 32,
     },
     cardRow: {
         flexDirection: 'row',
@@ -152,68 +242,69 @@ const styles = StyleSheet.create({
         fontSize: 14,
         lineHeight: 20,
     },
-    statsRow: {
-        flexDirection: 'row',
-        gap: 16,
-        marginBottom: 32,
-    },
-    statBox: {
-        flex: 1,
-        backgroundColor: '#111827',
-        padding: 20,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: '#1f2937',
-    },
-    statVal: {
-        fontSize: 24,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginBottom: 4,
-    },
-    statLabel: {
-        color: '#6b7280',
+    previewTitle: {
+        color: '#4b5563',
         fontSize: 12,
-    },
-    sectionTitle: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: 'bold',
+        fontWeight: '800',
+        letterSpacing: 1.5,
         marginBottom: 16,
     },
-    activityItem: {
+    emailCard: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         backgroundColor: '#111827',
         padding: 16,
-        borderRadius: 16,
+        borderRadius: 20,
         marginBottom: 12,
         borderWidth: 1,
         borderColor: '#1f2937',
     },
-    activityIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#1f2937',
+    iconCircle: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
     },
-    activityText: {
+    emailContent: {
         flex: 1,
     },
-    activityTitle: {
-        color: '#fff',
+    emailSnippet: {
+        color: '#d1d5db',
         fontSize: 14,
-        fontWeight: '600',
+        lineHeight: 20,
     },
-    activitySub: {
+    loaderContainer: {
+        paddingVertical: 40,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    loaderText: {
         color: '#9ca3af',
-        fontSize: 12,
+        marginTop: 12,
     },
-    activityTime: {
+    emptyText: {
         color: '#4b5563',
-        fontSize: 10,
+        textAlign: 'center',
+        marginTop: 40,
     },
+    aiResponseContainer: {
+        marginTop: 10,
+        backgroundColor: '#065f46',
+        padding: 12,
+        borderRadius: 12,
+    },
+    aiResponseTitle: {
+        color: '#a7f3d0',
+        fontSize: 12,
+        fontWeight: '700',
+        marginBottom: 4,
+    },
+    aiResponse: {
+        color: '#ecfdf5',
+        fontSize: 13,
+        lineHeight: 18,
+    }
 });

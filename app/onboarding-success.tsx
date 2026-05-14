@@ -1,12 +1,12 @@
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons'; 
+import { Ionicons } from '@expo/vector-icons';
 import { setAuthToken } from '../api/apiClient';
 import { gmailApi, EmailItem } from '../api/gmailApi';
 
 // Use shared type from API file
-interface item extends EmailItem {}
+interface item extends EmailItem { }
 
 export default function OnboardingSuccess() {
     const [emails, setEmails] = useState([]);
@@ -32,7 +32,7 @@ export default function OnboardingSuccess() {
         if (token) {
             // 1. Lock the token into the global client for ALL future API requests
             setAuthToken(token as string);
-            
+
             // 2. Execute synced preview
             fetchPreview();
         }
@@ -87,7 +87,7 @@ export default function OnboardingSuccess() {
             {/* Action Button */}
             <TouchableOpacity
                 style={styles.button}
-                onPress={() => router.push('/phone-setup')}
+                onPress={() => router.push('/(tabs)/home')}
             >
                 <Text style={styles.buttonText}>Continue to WhatsApp Setup</Text>
                 <Ionicons name="arrow-forward" size={18} color="#030712" />
